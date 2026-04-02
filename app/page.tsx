@@ -1,65 +1,154 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState } from "react";
+import styles from "./page.module.css";
+import { toast } from "react-toastify";
+
+import { useItems } from "../Hooks/useitem";
+import { useCart, useCartData } from "../Hooks/useCart";
+import { calculateFinalPrice, applyCoupon } from "../Discount/discount";
+
+export default function Page() {
+  const { data: items = [] } = useItems();
+  const { data: cart = [] } = useCartData();
+  const { addItem, decreaseItem, undo } = useCart();
+
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("");
+  const [sort, setSort] = useState("");
+  const [coupon, setCoupon] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState("");
+
+
+  let filtered = items.filter((item) => {
+    const matchSearch = item.name
+      .toLowerCase()
+      .includes(search.toLowerCase());
+
+    const matchCategory = category
+      ? item.category === category
+      : true;
+
+    return matchSearch && matchCategory;
+  });
+
+  if (sort === "low") {
+    filtered.sort((a, b) => a.price - b.price);
+  } else if (sort === "high") {
+    filtered.sort((a, b) => b.price - a.price);
+  }
+  const total = cart.reduce(
+    (sum, item) => sum + item.price * item.qty,
+    0
+  );
+
+  const { discount, couponDiscount, final } =
+    calculateFinalPrice(total, appliedCoupon);
+
+  const handleApplyCoupon = () => {
+    const code = coupon.trim().toUpperCase();
+
+
+    const isValid = applyCoupon(code, total - discount);
+
+    if (isValid > 0) {
+      setAppliedCoupon(code);
+      toast.success("Coupon Applied");
+    } else {
+      setAppliedCoupon("");
+      toast.error("Invalid Coupon");
+    }
+  };
+
+  const categories = ["", ...new Set(items.map((i) => i.category))];
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className={styles.container}>
+      <h1 className={styles.title}>🛒 Grocery App</h1>
+
+      <div className={styles.controls}>
+        <input
+          className={styles.input}
+          placeholder="Search..."
+          onChange={(e) => setSearch(e.target.value)}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+
+        <select
+          className={styles.input}
+          onChange={(e) => setCategory(e.target.value)}
+        >
+          {categories.map((cat, i) => (
+            <option key={i} value={cat}>
+              {cat || "All Categories"}
+            </option>
+          ))}
+        </select>
+        <select
+          className={styles.input}
+          onChange={(e) => setSort(e.target.value)}
+        >
+          <option value="">Sort By</option>
+          <option value="low">Price Low to High</option>
+          <option value="high">Price High to Low</option>
+        </select>
+
+        <input
+          className={styles.input}
+          placeholder="Coupon"
+          onChange={(e) => setCoupon(e.target.value)}
+        />
+
+        <button onClick={handleApplyCoupon} className={styles.addBtn}>
+          Apply
+        </button>
+      </div>
+
+      <div className={styles.main}>
+
+        <div className={styles.box}>
+          <h2>Items</h2>
+
+          {filtered.map((item) => (
+            <div key={item.id} className={styles.item}>
+              <span>
+                {item.name} ({item.category}) - ₹{item.price}
+              </span>
+              <button onClick={() => addItem(item)}>Add</button>
+            </div>
+          ))}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div className={styles.box}>
+          <h2>Cart</h2>
+
+          {cart.map((item) => (
+            <div key={item.id} className={styles.item}>
+              <span>
+                {item.name} - ₹{item.price} × {item.qty}
+              </span>
+
+              <div>
+                <button onClick={() => addItem(item)}>+</button>
+                <button onClick={() => decreaseItem(item.id)}>-</button>
+              </div>
+            </div>
+          ))}
+
+          <button onClick={undo}>Undo</button>
+
+          <hr />
+          <p>Total: ₹{total}</p>
+          <p>Discount: ₹{discount}</p>
+          <p>Coupon: ₹{couponDiscount}</p>
+          <h3>Final: ₹{final}</h3>
+          <div style={{ marginTop: "10px" }}>
+            <h4>Available Coupons</h4>
+            <p><b>SAVE10</b> - 10% off</p>
+            <p><b>SAVE20</b> - 20% off</p>
+            <p><b>SUPER30</b> - 30% off</p>
+          </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
